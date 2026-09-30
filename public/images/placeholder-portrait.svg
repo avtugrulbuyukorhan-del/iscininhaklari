@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000" viewBox="0 0 800 1000" role="img" aria-label="Avukat portresi yer tutucu">
+  <rect width="800" height="1000" fill="#1A2332"/>
+  <rect x="0" y="0" width="800" height="1000" fill="#C4A574" opacity="0.08"/>
+  <circle cx="400" cy="380" r="120" fill="#C4A574" opacity="0.35"/>
+  <path d="M220 820c20-140 80-220 180-220s160 80 180 220" fill="#C4A574" opacity="0.28"/>
+</svg>

@@ -1,0 +1,24 @@
+import { escapeJsonLd } from "@/lib/jsonLd";
+
+type WebPageSchemaProps = {
+  name: string;
+  description: string;
+  url: string;
+};
+
+export function WebPageSchema({ name, description, url }: WebPageSchemaProps) {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name,
+    description,
+    url,
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: escapeJsonLd(schema) }}
+    />
+  );
+}

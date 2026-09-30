@@ -1,0 +1,110 @@
+import { NextResponse } from "next/server";
+import { createSupabaseServerClient } from "@/lib/supabase/serverClient";
+import { siteConfig } from "@/lib/site";
+import { blogPosts } from "@/lib/blog-data";
+import { articleUrl } from "@/lib/paths";
+
+const baseUrl = siteConfig.url.replace(/\/$/, "");
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function stripHtml(html: string, maxLen = 200): string {
+  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return text.length > maxLen ? text.slice(0, maxLen) + "..." : text;
+}
+
+function formatRssDate(d: Date): string {
+  return d.toUTCString();
+}
+
+export async function GET() {
+  type FeedItem = {
+    title: string;
+    link: string;
+    description: string;
+    date: Date;
+    guid: string;
+  };
+
+  const items: FeedItem[] = [];
+
+  try {
+    const supabase = createSupabaseServerClient();
+    const { data: articles } = await supabase
+      .from("articles")
+      .select("title, meta_description, content, slug, category, updated_at, created_at")
+      .eq("status", "published")
+      .not("category", "is", null)
+      .order("updated_at", { ascending: false });
+
+    (articles ?? []).forEach((a) => {
+      const slug = (a as { slug: string }).slug;
+      const updatedAt = (a as { updated_at?: string }).updated_at ?? (a as { created_at: string }).created_at;
+      const date = new Date(updatedAt);
+      const desc =
+        (a as { meta_description?: string | null }).meta_description?.trim() ||
+        stripHtml((a as { content?: string }).content ?? "");
+      items.push({
+        title: (a as { title: string }).title,
+        link: articleUrl(slug, baseUrl),
+        description: desc,
+        date,
+        guid: articleUrl(slug, baseUrl),
+      });
+    });
+  } catch {
+    void 0;
+  }
+
+  blogPosts.forEach((post) => {
+    const date = post.date ? new Date(post.date) : new Date();
+    items.push({
+      title: post.title,
+      link: articleUrl(post.slug, baseUrl),
+      description: post.summary,
+      date,
+      guid: articleUrl(post.slug, baseUrl),
+    });
+  });
+
+  items.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+  const lastBuild = items[0]?.date ?? new Date();
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>${escapeXml(siteConfig.name)}</title>
+    <link>${baseUrl}</link>
+    <description>${escapeXml(siteConfig.description)}</description>
+    <language>tr</language>
+    <lastBuildDate>${formatRssDate(lastBuild)}</lastBuildDate>
+    <atom:link href="${baseUrl}/feed.xml" rel="self" type="application/rss+xml"/>
+    ${items
+      .map(
+        (item) => `
+    <item>
+      <title>${escapeXml(item.title)}</title>
+      <link>${escapeXml(item.link)}</link>
+      <description>${escapeXml(item.description)}</description>
+      <pubDate>${formatRssDate(item.date)}</pubDate>
+      <guid isPermaLink="true">${escapeXml(item.guid)}</guid>
+    </item>`
+      )
+      .join("")}
+  </channel>
+</rss>`;
+
+  return new NextResponse(xml, {
+    headers: {
+      "Content-Type": "application/rss+xml; charset=utf-8",
+      "Cache-Control": "public, max-age=3600, s-maxage=3600",
+    },
+  });
+}
